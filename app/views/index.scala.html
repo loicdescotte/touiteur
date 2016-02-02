@@ -11,7 +11,7 @@
   }
 
   <script type="text/javascript" charset="utf-8">
-    var feed = new EventSource("@routes.Application.stream2(queries.mkString(","))");
+    var feed = new EventSource("@routes.Application.stream(queries.mkString(","))");
       console.log("feed", feed);
       feed.addEventListener('message', function(event) {
         console.log(event);
