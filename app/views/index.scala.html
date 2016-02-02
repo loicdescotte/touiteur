@@ -1,0 +1,27 @@
+@(queries: List[String])
+
+@main("Mixed Tweets") {
+
+  <h2>Live mixed-tweets</h2>
+  <p>Change URL parameters for new search</p>
+
+
+  @queries.zipWithIndex.map { case(value, index) =>
+    <h3> <span id="message@index"></span> </h3>
+  }
+
+  <script type="text/javascript" charset="utf-8">
+    var feed = new EventSource("@routes.Application.stream2(queries.mkString(","))");
+      console.log("feed", feed);
+      feed.addEventListener('message', function(event) {
+        console.log(event);
+        var result  = jQuery.parseJSON(event.data);
+        console.log(result);
+        @queries.zipWithIndex.map { case(value, index) =>
+        if(result.message.toLowerCase().indexOf('@value'.toLowerCase()) === 0){
+          $('#message@index').html(result.message + " -" + result.author)
+        }
+      }
+    }, false);
+  </script>
+}
