@@ -60,10 +60,10 @@ class Application extends Controller {
       }
     }
 
-    val sourceFuture = Future.sequence(sources).map(Source(_).flatMapMerge(10, identity))
+    val sourceFuture = Future.sequence(sources).map(Source(_).flatMapMerge(10, identity).map(_.toJson))
     sourceFuture.map{ source =>
       //hack for SSE before EventSource builder is integrated in Play
-      val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: ${tweetInfo.toJson}\n\n"))
+      val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: $tweetInfo\n\n"))
       Ok.chunked(sseSource).as("text/event-stream")
     }
   }
@@ -88,8 +88,8 @@ class Application extends Controller {
       }
 
     }
-    val source = Source.fromPublisher(publisher)
-    val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: ${tweetInfo.toJson}\n\n"))
+    val source = Source.fromPublisher(publisher).map(_.toJson)
+    val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: $tweetInfo\n\n"))
     Ok.chunked(sseSource).as("text/event-stream")
   }
 }
