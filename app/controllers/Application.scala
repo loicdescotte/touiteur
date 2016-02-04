@@ -7,6 +7,7 @@ import play.api.libs.json._
 import play.api.libs.ws._
 import org.reactivestreams._
 import akka.actor._
+import akka.util._
 import akka.stream.actor._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
@@ -16,6 +17,11 @@ import play.api.Logger
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.collection._
+import akka.stream.io.Framing
+
+case class TweetInfo(searchQuery: String, message: String, author: String) {
+  def toJson = Json.obj("message" -> s"${this.searchQuery} : ${this.message}", "author" -> s"${this.author}")
+}
 
 class Application extends Controller {
 
@@ -48,103 +54,21 @@ class Application extends Controller {
   //fake twitter API
   def stream(query: String) = Action.async {
     val sources = query.split(",").toList.map { query =>
-      val twitterStreamSource = WS.url(s"http://localhost:9000/timeline/$query").stream
-
-      twitterStreamSource.map { response =>
-        response.body.mapConcat {
-          byteString => byteString.decodeString("UTF-8").split("\n").toList.map { response =>
-            val json = Json.parse(response)
-            TweetInfo(query, (json \ "message").as[String], (json \ "author").as[String])
-          }
+      val futureTwitterResponse = WS.url(s"http://localhost:9000/timeline/$query").stream
+      futureTwitterResponse.map { response =>
+        response.body.via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 100, allowTruncation = true).map(_.utf8String)).map { tweet =>
+          val json = Json.parse(tweet)
+          TweetInfo(query, (json \ "message").as[String], (json \ "author").as[String])
         }
       }
     }
 
     val sourceFuture = Future.sequence(sources).map(Source(_).flatMapMerge(10, identity).map(_.toJson))
-    sourceFuture.map{ source =>
+    sourceFuture.map { source =>
       //hack for SSE before EventSource builder is integrated in Play
       val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: $tweetInfo\n\n"))
       Ok.chunked(sseSource).as("text/event-stream")
     }
-  }
-
-
-  def stream2(queries: String) = Action {
-    implicit val system = ActorSystem("touiter")
-    implicit val materializer = ActorMaterializer()
-
-    val actorRef = system.actorOf(Props[ActorBasedTwitterSource])
-    val publisher = ActorPublisher[TweetInfo](actorRef)
-
-    queries.split(",").foreach { query =>
-      val twitterStreamSource = WS.url(s"http://localhost:9000/timeline/$query").stream
-
-      twitterStreamSource.onComplete {
-        case Success(source) => source.body.map(_.decodeString("UTF-8")).runForeach { line =>
-          Logger.debug(line)
-          actorRef !(query, line)
-        }
-        case Failure(t) => Logger.error("An error has occured: ", t)
-      }
-
-    }
-    val source = Source.fromPublisher(publisher).map(_.toJson)
-    val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: $tweetInfo\n\n"))
-    Ok.chunked(sseSource).as("text/event-stream")
-  }
-}
-
-case class TweetInfo(searchQuery: String, message: String, author: String) {
-  def toJson = Json.obj("message" -> s"${this.searchQuery} : ${this.message}", "author" -> s"${this.author}")
-}
-
-class ActorBasedTwitterSource extends Actor with ActorPublisher[TweetInfo] {
-
-  import ActorPublisherMessage._
-  import mutable.Map
-  import mutable.ListBuffer
-
-  val buffers = Map[String, String]()
-  val items: ListBuffer[TweetInfo] = ListBuffer.empty
-
-  def receive = {
-    case (query: String, responses: String) =>
-      val queryBuffer = buffers.getOrElse(query, "")
-      val currentString = (queryBuffer + responses)
-      if (currentString contains "\n") {
-        val twitterResponses = currentString.split("\n")
-        buffers(query) = ""
-        val tweetInfos = twitterResponses.map { response =>
-          val json = Json.parse(response)
-          TweetInfo(query, (json \ "message").as[String], (json \ "author").as[String])
-        }
-        if (totalDemand == 0) {
-          items ++= tweetInfos
-        }
-        else {
-          tweetInfos foreach (onNext)
-        }
-      }
-
-    case Request(demand) =>
-      if (demand > items.size) {
-        items foreach (onNext)
-        items.clear
-      }
-      else {
-        val (send, _) = items.splitAt(demand.toInt)
-        send.foreach { elem =>
-          items -= elem
-          onNext(elem)
-        }
-      }
-
-    case Cancel =>
-      items.clear
-      println("Canceled")
-
-    case other =>
-      println(s"got other $other")
   }
 
 }
