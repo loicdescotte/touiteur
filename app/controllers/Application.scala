@@ -53,7 +53,7 @@ class Application extends Controller {
 
   //fake twitter API
   def stream(query: String) = Action.async {
-    val sources = query.split(",").toList.map { query =>
+    val sourceListFuture = query.split(",").toList.map { query =>
       val futureTwitterResponse = WS.url(s"http://localhost:9000/timeline/$query").stream
       futureTwitterResponse.map { response =>
         response.body.via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 100, allowTruncation = true).map(_.utf8String)).map { tweet =>
@@ -63,7 +63,7 @@ class Application extends Controller {
       }
     }
 
-    val sourceFuture = Future.sequence(sources).map(Source(_).flatMapMerge(10, identity).map(_.toJson))
+    val sourceFuture = Future.sequence(sourceListFuture).map(Source(_).flatMapMerge(10, identity).map(_.toJson))
     sourceFuture.map { source =>
       //hack for SSE before EventSource builder is integrated in Play
       val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: $tweetInfo\n\n"))
