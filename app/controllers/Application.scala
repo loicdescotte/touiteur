@@ -42,6 +42,7 @@ class Application extends Controller {
     (prefixes(rand.nextInt(prefixes.length)), authors(rand.nextInt(authors.length)))
   }
 
+  //fake twitter API
   def timeline(keyword: String) = Action {
     val source = Source.tick(initialDelay = 0 second, interval = 1 second, tick = "tick")
     Ok.chunked(source.map { tick =>
@@ -50,7 +51,7 @@ class Application extends Controller {
     }.limit(100)).as("application/json")
   }
 
-  //fake twitter API
+
   def stream(query: String) = Action.async {
     val sourceListFuture = query.split(",").toList.map { query =>
       val futureTwitterResponse = WS.url(s"http://localhost:9000/timeline/$query").stream
