@@ -44,7 +44,6 @@ class Application extends Controller {
 
   def timeline(keyword: String) = Action {
     val source = Source.tick(initialDelay = 0 second, interval = 1 second, tick = "tick")
-    val (prefix, author) = prefixAndAuthor
     Ok.chunked(source.map { tick =>
       val (prefix, author) = prefixAndAuthor
       Json.obj("message" -> s"$prefix $keyword", "author" -> author).toString + "\n"
