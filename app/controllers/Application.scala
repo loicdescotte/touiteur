@@ -48,7 +48,7 @@ class Application extends Controller {
     Ok.chunked(source.map { tick =>
       val (prefix, author) = prefixAndAuthor
       Json.obj("message" -> s"$prefix $keyword", "author" -> author).toString + "\n"
-    }.limit(100)).as("application/json")
+    }.limit(100))
   }
 
 
