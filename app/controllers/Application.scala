@@ -5,18 +5,12 @@ import play.api.mvc._
 import scala.concurrent.duration._
 import play.api.libs.json._
 import play.api.libs.ws._
-import org.reactivestreams._
-import akka.actor._
 import akka.util._
 import akka.stream.actor._
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl._
 import play.api.Play.current
-import scala.util._
-import play.api.Logger
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.collection._
 import akka.stream.io.Framing
 
 case class TweetInfo(searchQuery: String, message: String, author: String) {
