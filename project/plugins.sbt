@@ -1,7 +1,9 @@
 resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
+resolvers += "Typesafe Snapshots" at "http://repo.typesafe.com/typesafe/snapshots/"
+
 // The Play plugin
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.0-M2")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.5.0-2016-02-09-4a576a7-SNAPSHOT")
 
 // web plugins
 

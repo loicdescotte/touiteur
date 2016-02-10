@@ -12,9 +12,10 @@ import play.api.Play.current
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import akka.stream.io.Framing
+import play.api.libs.EventSource
 
 case class TweetInfo(searchQuery: String, message: String, author: String) {
-  def toJson = Json.obj("message" -> s"${this.searchQuery} : ${this.message}", "author" -> s"${this.author}")
+  def toJsonString = Json.stringify(Json.obj("message" -> s"${this.searchQuery} : ${this.message}", "author" -> s"${this.author}"))
 }
 
 class Application extends Controller {
@@ -57,11 +58,9 @@ class Application extends Controller {
       }
     }
 
-    val sourceFuture = Future.sequence(sourceListFuture).map(Source(_).flatMapMerge(10, identity).map(_.toJson))
+    val sourceFuture = Future.sequence(sourceListFuture).map(Source(_).flatMapMerge(10, identity).map(_.toJsonString))
     sourceFuture.map { source =>
-      //hack for SSE before EventSource builder is integrated in Play
-      val sseSource = Source.single("event: message\n").concat(source.map(tweetInfo => s"data: $tweetInfo\n\n"))
-      Ok.chunked(sseSource).as("text/event-stream")
+      Ok.chunked(source via EventSource.flow)
     }
   }
 
