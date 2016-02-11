@@ -4,7 +4,7 @@
 
 # Home page
 GET    /                           controllers.Application.index
-GET    /timeline/:keyword          controllers.Application.timeline(keyword:String)
+GET    /timeline                   controllers.Application.timeline(keyword:String)
 GET    /stream                     controllers.Application.stream(queries:String)
 GET    /liveTouits         		     controllers.Application.liveTouits(queries: List[String])
 

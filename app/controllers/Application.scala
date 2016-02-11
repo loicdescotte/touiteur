@@ -49,7 +49,7 @@ class Application extends Controller {
 
   def stream(query: String) = Action.async {
     val sourceListFuture = query.split(",").toList.map { query =>
-      val futureTwitterResponse = WS.url(s"http://localhost:9000/timeline/$query").stream
+      val futureTwitterResponse = WS.url(s"http://localhost:9000/timeline").withQueryString("keyword" -> query).stream
       futureTwitterResponse.map { response =>
         response.body.via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 100, allowTruncation = true).map(_.utf8String)).map { tweet =>
           val json = Json.parse(tweet)
