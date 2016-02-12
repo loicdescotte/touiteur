@@ -14,8 +14,10 @@ import scala.concurrent.Future
 import akka.stream.io.Framing
 import play.api.libs.EventSource
 
-case class TweetInfo(searchQuery: String, message: String, author: String) {
-  def toJsonString = Json.stringify(Json.obj("message" -> s"${this.searchQuery} : ${this.message}", "author" -> s"${this.author}"))
+case class TweetInfo(searchQuery: String, message: String, author: String)
+
+object TweetInfo {
+  implicit val tweetInfoFormat = Json.format[TweetInfo]
 }
 
 class Application extends Controller {
@@ -58,7 +60,7 @@ class Application extends Controller {
       }
     }
 
-    val sourceFuture = Future.sequence(sourceListFuture).map(Source(_).flatMapMerge(10, identity).map(_.toJsonString))
+    val sourceFuture = Future.sequence(sourceListFuture).map(Source(_).flatMapMerge(10, identity).map(tweet => Json.toJson(tweet)))
     sourceFuture.map { source =>
       Ok.chunked(source via EventSource.flow)
     }

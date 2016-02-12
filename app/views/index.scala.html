@@ -18,8 +18,8 @@
         var result  = jQuery.parseJSON(event.data);
         console.log(result);
         @queries.zipWithIndex.map { case(value, index) =>
-        if(result.message.toLowerCase().indexOf('@value'.toLowerCase()) === 0){
-          $('#message@index').html(result.message + " -" + result.author)
+        if(result.searchQuery === "@value"){
+          $('#message@index').html(result.searchQuery + " : " + result.message + " -" + result.author)
         }
       }
     }, false);
