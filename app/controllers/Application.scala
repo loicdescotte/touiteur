@@ -1,18 +1,17 @@
 package controllers
 
-import akka.stream.scaladsl.Source
-import play.api.mvc._
-import scala.concurrent.duration._
-import play.api.libs.json._
-import play.api.libs.ws._
+import javax.inject.Inject
+
+import akka.NotUsed
+import akka.stream.scaladsl.{Source, _}
 import akka.util._
-import akka.stream.actor._
-import akka.stream.scaladsl._
-import play.api.Play.current
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-import akka.stream.io.Framing
 import play.api.libs.EventSource
+import play.api.libs.json._
+import play.api.libs.ws.{WSClient, WSRequest}
+import play.api.mvc._
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 case class TweetInfo(searchQuery: String, message: String, author: String)
 
@@ -20,7 +19,8 @@ object TweetInfo {
   implicit val tweetInfoFormat = Json.format[TweetInfo]
 }
 
-class Application extends Controller {
+class Application@Inject()(wSClient: WSClient)(implicit ec: ExecutionContext) extends Controller {
+
 
   def index = Action {
     //default search
@@ -41,29 +41,34 @@ class Application extends Controller {
 
   //fake twitter API
   def timeline(keyword: String) = Action {
-    val source = Source.tick(initialDelay = 0 second, interval = 1 second, tick = "tick")
+    val source = Source.tick(initialDelay = 0.second, interval = 1.second, tick = "tick")
     Ok.chunked(source.map { tick =>
       val (prefix, author) = prefixAndAuthor
       Json.obj("message" -> s"$prefix $keyword", "author" -> author).toString + "\n"
     }.limit(100))
   }
 
+  val framing = Framing.delimiter(ByteString("\n"), maximumFrameLength = 100, allowTruncation = true)
 
-  def stream(query: String) = Action.async {
-    val sourceListFuture = query.split(",").toList.map { query =>
-      val futureTwitterResponse = WS.url(s"http://localhost:9000/timeline").withQueryString("keyword" -> query).stream
-      futureTwitterResponse.map { response =>
-        response.body.via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 100, allowTruncation = true).map(_.utf8String)).map { tweet =>
-          val json = Json.parse(tweet)
-          TweetInfo(query, (json \ "message").as[String], (json \ "author").as[String])
-        }
-      }
+  def stream(queryString: String) = Action {
+    val words = Source(queryString.split(",").toList)
+    val responses = words.flatMapMerge(10, query)
+    Ok.chunked(responses via EventSource.flow)
+  }
+
+  def query(word: String): Source[JsValue, NotUsed] = wSClient
+    .url(s"http://localhost:9000/timeline")
+    .withQueryString("keyword" -> word)
+    .source
+    .via(framing)
+    .map { byteString =>
+      val json = Json.parse(byteString.utf8String)
+      val tweetInfo = TweetInfo(word, (json \ "message").as[String], (json \ "author").as[String])
+      Json.toJson(tweetInfo)
     }
 
-    val sourceFuture = Future.sequence(sourceListFuture).map(Source(_).flatMapMerge(10, identity).map(tweet => Json.toJson(tweet)))
-    sourceFuture.map { source =>
-      Ok.chunked(source via EventSource.flow)
-    }
+  implicit class RichWsRequest(request: WSRequest) {
+    def source = Source.fromFuture(request.stream()).flatMapConcat(_.body)
   }
 
 }
