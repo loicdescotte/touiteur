@@ -19,7 +19,7 @@ object TweetInfo {
   implicit val tweetInfoFormat = Json.format[TweetInfo]
 }
 
-class Application@Inject()(wSClient: WSClient)(implicit ec: ExecutionContext) extends Controller {
+class Application @Inject()(wSClient: WSClient)(implicit ec: ExecutionContext) extends Controller {
 
 
   def index = Action {
@@ -50,27 +50,26 @@ class Application@Inject()(wSClient: WSClient)(implicit ec: ExecutionContext) ex
 
   val framing = Framing.delimiter(ByteString("\n"), maximumFrameLength = 100, allowTruncation = true)
 
-  def stream(queryString: String) = Action {
-    val words = Source(queryString.split(",").toList)
-    val responses = words.flatMapMerge(10, query)
+  def mixedStream(queryString: String) = Action {
+    val keywordSources = Source(queryString.split(",").toList)
+    val responses = keywordSources.flatMapMerge(10, queryToSource)
     Ok.chunked(responses via EventSource.flow)
   }
 
-  private def query(word: String): Source[JsValue, NotUsed] = {
+  private def queryToSource(keyword: String) = {
     val request = wSClient
       .url(s"http://localhost:9000/timeline")
-      .withQueryString("keyword" -> word)
+      .withQueryString("keyword" -> keyword)
 
     streamResponse(request)
       .via(framing)
       .map { byteString =>
         val json = Json.parse(byteString.utf8String)
-        val tweetInfo = TweetInfo(word, (json \ "message").as[String], (json \ "author").as[String])
+        val tweetInfo = TweetInfo(keyword, (json \ "message").as[String], (json \ "author").as[String])
         Json.toJson(tweetInfo)
       }
   }
 
-  private def streamResponse(request: WSRequest) =
-    Source.fromFuture(request.stream()).flatMapConcat(_.body)
+  private def streamResponse(request: WSRequest) = Source.fromFuture(request.stream()).flatMapConcat(_.body)
 
 }

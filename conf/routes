@@ -5,7 +5,7 @@
 # Home page
 GET    /                           controllers.Application.index
 GET    /timeline                   controllers.Application.timeline(keyword:String)
-GET    /stream                     controllers.Application.stream(queries:String)
+GET    /mixedStream                controllers.Application.mixedStream(queries:String)
 GET    /liveTouits         		     controllers.Application.liveTouits(queries: List[String])
 
 # Map static resources from the /public folder to the /assets URL path
