@@ -56,19 +56,21 @@ class Application@Inject()(wSClient: WSClient)(implicit ec: ExecutionContext) ex
     Ok.chunked(responses via EventSource.flow)
   }
 
-  def query(word: String): Source[JsValue, NotUsed] = wSClient
-    .url(s"http://localhost:9000/timeline")
-    .withQueryString("keyword" -> word)
-    .source
-    .via(framing)
-    .map { byteString =>
-      val json = Json.parse(byteString.utf8String)
-      val tweetInfo = TweetInfo(word, (json \ "message").as[String], (json \ "author").as[String])
-      Json.toJson(tweetInfo)
-    }
+  private def query(word: String): Source[JsValue, NotUsed] = {
+    val request = wSClient
+      .url(s"http://localhost:9000/timeline")
+      .withQueryString("keyword" -> word)
 
-  implicit class RichWsRequest(request: WSRequest) {
-    def source = Source.fromFuture(request.stream()).flatMapConcat(_.body)
+    streamResponse(request)
+      .via(framing)
+      .map { byteString =>
+        val json = Json.parse(byteString.utf8String)
+        val tweetInfo = TweetInfo(word, (json \ "message").as[String], (json \ "author").as[String])
+        Json.toJson(tweetInfo)
+      }
   }
+
+  private def streamResponse(request: WSRequest) =
+    Source.fromFuture(request.stream()).flatMapConcat(_.body)
 
 }
